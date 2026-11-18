@@ -2,8 +2,9 @@ use crate::Result;
 
 use std::io::Cursor;
 
+use rodio::MixerDeviceSink;
 use rodio::mixer::Mixer;
-use rodio::{DeviceSinkBuilder, MixerDeviceSink};
+use rodio::speakers::SpeakersBuilder;
 
 pub struct Sound {
     _stream: MixerDeviceSink,
@@ -13,7 +14,17 @@ pub struct Sound {
 
 impl Sound {
     pub fn new() -> Result<Self> {
-        let stream = DeviceSinkBuilder::open_default_sink()?;
+        // The speakers builder validates the config against the device's
+        // supported ranges and clamps the buffer size accordingly (the legacy
+        // DeviceSinkBuilder requests a fixed ~50ms buffer, e.g. 2048 frames,
+        // which some devices reject).
+        let mut stream = SpeakersBuilder::new()
+            .default_device()?
+            .default_config()?
+            .open_mixer()?;
+        // `play()` waits for the sound to finish before dropping, so the
+        // default drop notice is just noise.
+        stream.log_on_drop(false);
         let mixer = stream.mixer().clone();
         let contents = include_bytes!("beep.ogg");
         Ok(Sound {

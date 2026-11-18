@@ -118,9 +118,12 @@ where
 
     if !opts.silence {
         let sa = Arc::clone(&sound_alert);
-        let sound_handle = std::thread::spawn(move || sa.play().unwrap());
+        // `Box<dyn Error>` is not `Send`, so pass the error message across
+        // the thread boundary as a `String`.
+        let sound_handle = std::thread::spawn(move || sa.play().map_err(|e| e.to_string()));
         beep_alert.play()?;
-        sound_handle.join().map_err(|_| "Sound thread panicked")?;
+        // First `?` unwraps the join handle, the second the sound result.
+        sound_handle.join().map_err(|_| "Sound thread panicked")??;
     }
     Ok(())
 }
