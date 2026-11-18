@@ -19,6 +19,7 @@ src/
 ├── time.rs          # Time struct, formatting, FIGlet ASCII rendering
 ├── ui.rs            # Terminal UI (crossterm): setup, draw, restore
 ├── beep.rs          # Linux PC speaker hardware beep (ioctl)
+├── program_status.rs # OSC 7501 program status reports (working/done/idle/error)
 ├── constants.rs     # Timing constants for beep/sound
 ├── utils.rs         # Thread utilities with timeout
 ├── figlet/
@@ -140,6 +141,17 @@ Uses `rodio` crate:
 FIGlet font rendering:
 - Embeds `univers.flf` font at compile time
 - `Figlet::convert(&self, s: &str) -> String` - Converts text to ASCII art
+
+### `program_status.rs` - OSC 7501 Program Status
+Implements the writer side of the Program Status Protocol (OSC 7501):
+- `Report::new(State)`, `.progress(0..=100)`, `.msg(text)`, `to_sequence()`
+- `write_report(w, &Report)` - Emits `ESC ] 7501 ; key=value (: key=value)* ESC \`
+- `base64_encode(input)` - Used for free-text `msg` values (standard base64)
+- `State` - `idle`, `working` (with optional `progress`), `done`, `error`
+
+Every report carries `app=timer`. Messages with control characters or above the protocol limits are dropped, while the state keys are still reported. Unknown terminals ignore the sequence.
+
+The countdown emits `working` (with progress) on every tick, `done` when it reaches zero, `idle` when interrupted by a signal, and `error` when it fails.
 
 ### `constants.rs` - Timing Constants
 ```rust

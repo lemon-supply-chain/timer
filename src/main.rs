@@ -3,6 +3,7 @@ mod beep;
 mod constants;
 mod figlet;
 mod opts;
+mod program_status;
 mod sound;
 mod stopwatch;
 mod time;
@@ -13,6 +14,7 @@ extern crate time as time_crate;
 
 use crate::beep::beep;
 use crate::opts::{Command, Opts};
+use crate::program_status::{Report, State};
 
 use std::io;
 use std::process::exit;
@@ -41,6 +43,7 @@ fn handle_countdown<W: io::Write>(w: &mut W, end: OffsetDateTime, opts: &Opts) {
             ui::restore_terminal(w).unwrap();
         }
         Err(e) => {
+            let _ = program_status::write_report(w, &Report::new(State::Error));
             ui::restore_terminal(w).unwrap();
             eprintln!("Error: {e:?}");
         }
@@ -117,6 +120,10 @@ fn run_countdown(opts: Opts) {
             SIGTERM | SIGINT | SIGQUIT => {
                 // ensure beep stops
                 let _ = beep(0, Duration::from_secs(0));
+                let _ = program_status::write_report(
+                    &mut stdout_signals_thread,
+                    &Report::new(State::Idle),
+                );
                 ui::restore_terminal(&mut stdout_signals_thread).unwrap();
                 exit(1);
             }

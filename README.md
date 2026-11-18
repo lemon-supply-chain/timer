@@ -38,6 +38,7 @@ timer stopwatch    # count up from zero
 - Optional terminal bell, useful with visual-bell terminal configurations
 - Repeating countdowns with `--loop`
 - Interactive stopwatch with pause, lap, and reset controls
+- Program status reporting through [OSC 7501](#program-status-osc-7501)
 
 ## Usage
 
@@ -165,6 +166,17 @@ With `-t` / `--terminal-bell`, Timer also emits the terminal bell character (`\a
 ```bash
 timer -t -s 11:00
 ```
+
+## Program status (OSC 7501)
+
+Timer reports its state to the terminal with the [Program Status Protocol](https://www.superlogical.com/rex/docs/build/program-status) (OSC 7501), so terminals that support it can show what the countdown is doing without parsing the screen:
+
+- `state=working` with `progress` while the countdown runs
+- `state=done` when it reaches zero
+- `state=idle` when it is interrupted
+- `state=error` when it stops because of an error
+
+Reports identify the program with `app=timer` and are ignored by terminals that do not implement the protocol.
 
 ## Why Timer?
 

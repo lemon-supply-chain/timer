@@ -1,6 +1,7 @@
 use crate::Result;
 use crate::alert::{Alert, BeepAlert, SoundAlert, write_terminal_bell};
 use crate::opts::Opts;
+use crate::program_status::{self, Report, State};
 use crate::ui;
 
 use std::io;
@@ -135,21 +136,36 @@ where
     W: io::Write,
     B: Alert + ?Sized,
 {
+    let total = (end - OffsetDateTime::now_utc()).max(Duration::ZERO);
+
     loop {
         match end - OffsetDateTime::now_utc() {
-            counter if counter > Duration::ZERO => match ui::draw(w, counter) {
-                Ok(_) => {
-                    sleep(stdDuration::from_secs(1));
+            counter if counter > Duration::ZERO => {
+                let report = Report::new(State::Working).progress(progress_percent(counter, total));
+                program_status::write_report(w, &report)?;
+                match ui::draw(w, counter) {
+                    Ok(_) => {
+                        sleep(stdDuration::from_secs(1));
+                    }
+                    Err(e) => return Err(e),
                 }
-                Err(e) => return Err(e),
-            },
+            }
             _ => {
                 ui::draw(w, Duration::ZERO)?;
+                let report = Report::new(State::Done).msg("Time is up");
+                program_status::write_report(w, &report)?;
                 play_completion_alerts(w, opts, beep_alert, sound_alert)?;
                 return Ok(());
             }
         }
     }
+}
+
+fn progress_percent(remaining: Duration, total: Duration) -> u8 {
+    let total_ms = total.whole_milliseconds().max(1);
+    let remaining_ms = remaining.whole_milliseconds().clamp(0, total_ms);
+
+    ((total_ms - remaining_ms) * 100 / total_ms) as u8
 }
 
 pub fn countdown<W>(w: &mut W, end: OffsetDateTime, opts: &Opts) -> Result<()>
@@ -503,5 +519,55 @@ mod tests {
         assert!(result.is_err());
         let log = beep_log.lock().unwrap();
         assert!(log.calls.contains(&"beep"));
+    }
+
+    #[test]
+    fn test_progress_percent() {
+        assert_eq!(
+            progress_percent(Duration::seconds(10), Duration::seconds(10)),
+            0
+        );
+        assert_eq!(
+            progress_percent(Duration::seconds(5), Duration::seconds(10)),
+            50
+        );
+        assert_eq!(progress_percent(Duration::ZERO, Duration::seconds(10)), 100);
+    }
+
+    #[test]
+    fn test_progress_percent_remaining_above_total() {
+        assert_eq!(
+            progress_percent(Duration::seconds(20), Duration::seconds(10)),
+            0
+        );
+    }
+
+    #[test]
+    fn test_countdown_reports_program_status() {
+        use crate::opts::Opts;
+
+        let mut buffer = Vec::new();
+        let opts = Opts {
+            command: None,
+            r#loop: false,
+            silence: true,
+            terminal_bell: false,
+            time: vec!["1s".to_string()],
+        };
+
+        let end = OffsetDateTime::now_utc() + Duration::seconds(1);
+        let beep_alert = MockAlert::new(Arc::new(Mutex::new(AlertCallLog::new())), "beep");
+        let sound_alert = Arc::new(SilentAlert);
+
+        let result = countdown_with_alerts(&mut buffer, end, &opts, &beep_alert, sound_alert);
+        assert!(result.is_ok());
+
+        let output = String::from_utf8(buffer).unwrap();
+        let working = "\x1b]7501;state=working:app=timer:progress=";
+        let done = "\x1b]7501;state=done:app=timer:msg=VGltZSBpcyB1cA==\x1b\\";
+
+        let working_at = output.find(working).expect("working report missing");
+        let done_at = output.find(done).expect("done report missing");
+        assert!(working_at < done_at);
     }
 }
