@@ -128,7 +128,6 @@ pub(crate) fn handle_key(key: KeyEvent) -> Action {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
 
     #[test]
     fn test_handle_key_space() {

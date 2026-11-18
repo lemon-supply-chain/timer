@@ -9,7 +9,7 @@ use rodio::speakers::SpeakersBuilder;
 pub struct Sound {
     _stream: MixerDeviceSink,
     mixer: Mixer,
-    cursor: Cursor<&'static [u8; 5943]>,
+    cursor: Cursor<&'static [u8]>,
 }
 
 impl Sound {
@@ -26,7 +26,7 @@ impl Sound {
         // default drop notice is just noise.
         stream.log_on_drop(false);
         let mixer = stream.mixer().clone();
-        let contents = include_bytes!("beep.ogg");
+        let contents: &'static [u8] = include_bytes!("beep.ogg");
         Ok(Sound {
             _stream: stream,
             mixer,

@@ -17,17 +17,8 @@ impl From<&Duration> for Time {
     fn from(duration: &Duration) -> Self {
         let total_s = (duration.whole_milliseconds() as f64 / 1000.).round() as u64;
         let hours = total_s / 3600;
-        let minutes = if hours == 0 {
-            (total_s / 60) as u8
-        } else {
-            ((total_s % (hours * 3600)) / 60) as u8
-        };
-
-        let seconds = if hours == 0 && minutes == 0 {
-            total_s as u8
-        } else {
-            (total_s % (hours * 3600 + minutes as u64 * 60)) as u8
-        };
+        let minutes = (total_s % 3600 / 60) as u8;
+        let seconds = (total_s % 60) as u8;
         Time {
             hours,
             minutes,

@@ -75,17 +75,15 @@ fn parse<'a>(mut iter: impl Iterator<Item = &'a str>) -> Option<Figlet> {
         if current.len() == height {
             let width = current.iter().fold(0, |max, s| std::cmp::max(max, s.len()));
 
-            if current.len() == height {
-                for line in current.iter_mut() {
-                    while line.len() < width {
-                        line.push(' ');
-                    }
+            for line in current.iter_mut() {
+                while line.len() < width {
+                    line.push(' ');
                 }
-
-                chars.push(Char {
-                    text: std::mem::replace(&mut current, Vec::with_capacity(height)),
-                })
             }
+
+            chars.push(Char {
+                text: std::mem::replace(&mut current, Vec::with_capacity(height)),
+            });
         }
     }
 

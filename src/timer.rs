@@ -5,45 +5,33 @@ use crate::program_status::{self, Report, State};
 use crate::ui;
 
 use std::io;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::thread::sleep;
 use std::time::Duration as stdDuration;
 
-use regex::{Regex, RegexSet};
+use regex::Regex;
 use time::{Duration, OffsetDateTime, Time, format_description};
 
-pub fn parse_counter_time(s: &str) -> Option<Duration> {
-    let re = Regex::new(
-        r"^(?:(?P<hours>\d+)h ?)?(?:(?P<minutes>\d+)m(?:in)? ?)?(?:(?P<seconds>\d+)s? ?)?$",
-    )
-    .unwrap();
+static COUNTER_TIME_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(?:(?P<hours>\d+)h ?)?(?:(?P<minutes>\d+)m(?:in)? ?)?(?:(?P<seconds>\d+)s? ?)?$")
+        .expect("static regex should be valid")
+});
 
-    let caps = re.captures(s)?;
+pub fn parse_counter_time(s: &str) -> Option<Duration> {
+    let caps = COUNTER_TIME_RE.captures(s)?;
 
     // regex without `^(?!$)` must ensure of matching something
     if caps[0].is_empty() {
         return None;
     };
 
-    let set = RegexSet::new([r"(\d+)h", r"(\d+)m(?:in)?", r"(\d+)s?$"]).unwrap();
-
-    let matches: Vec<_> = set.matches(s).into_iter().collect();
-
-    let hours = if matches.contains(&0) {
-        caps["hours"].parse::<u32>().unwrap()
-    } else {
-        0
+    let parse_unit = |name: &str| {
+        caps.name(name)
+            .map_or(0, |m| m.as_str().parse::<u32>().unwrap())
     };
-    let minutes = if matches.contains(&1) {
-        caps["minutes"].parse::<u32>().unwrap()
-    } else {
-        0
-    };
-    let seconds = if matches.contains(&2) {
-        caps["seconds"].parse::<u32>().unwrap()
-    } else {
-        0
-    };
+    let hours = parse_unit("hours");
+    let minutes = parse_unit("minutes");
+    let seconds = parse_unit("seconds");
 
     let total: i64 = (hours * 3600 + minutes * 60 + seconds).into();
     Some(Duration::seconds(total))
@@ -95,11 +83,8 @@ pub fn resize_term<W>(w: &mut W, end: OffsetDateTime) -> Result<()>
 where
     W: io::Write,
 {
-    match end - OffsetDateTime::now_utc() {
-        counter if counter > Duration::ZERO => ui::draw(w, counter),
-        counter if counter <= Duration::ZERO => ui::draw(w, Duration::ZERO),
-        _ => unreachable!(),
-    }
+    let counter = (end - OffsetDateTime::now_utc()).max(Duration::ZERO);
+    ui::draw(w, counter)
 }
 
 pub fn play_completion_alerts<W, B>(
@@ -180,7 +165,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(test)]
     use crate::alert::SilentAlert;
     use crate::alert::{Alert, AlertCallLog, MockAlert};
     use crate::constants::{BEEP_DELAY, BEEP_FREQ, BEEP_REPETITIONS, SOUND_START_DELAY};
@@ -281,10 +265,7 @@ mod tests {
 
     #[test]
     fn test_parse_counter_time_duplicate_units() {
-        // This should either return Some or None, but shouldn't panic
-        let result = parse_counter_time("1h1h");
-        // Just ensure it doesn't panic
-        assert!(result.is_some() || result.is_none());
+        assert_eq!(None, parse_counter_time("1h1h"));
     }
 
     #[test]
@@ -315,12 +296,7 @@ mod tests {
 
     #[test]
     fn test_parse_counter_time_with_spaces() {
-        let result = parse_counter_time("1h 30m");
-        if let Some(dur) = result {
-            assert_eq!(Duration::seconds(5400), dur);
-        } else {
-            assert_eq!(None, result);
-        }
+        assert_eq!(Some(Duration::seconds(5400)), parse_counter_time("1h 30m"));
     }
 
     #[test]

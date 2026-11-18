@@ -3,7 +3,6 @@ use crate::Result;
 use std::error::Error;
 use std::fmt;
 use std::fs::{File, OpenOptions};
-use std::mem::{MaybeUninit, size_of};
 use std::os::unix::io::AsRawFd;
 use std::sync::LazyLock;
 use std::thread::sleep;
@@ -13,12 +12,16 @@ use glob::glob;
 #[cfg(target_os = "linux")]
 use libc::{c_void, input_event, write};
 use nix::ioctl_write_int_bad;
+#[cfg(target_os = "linux")]
+use std::mem::{MaybeUninit, size_of};
 
 const DEVICE_PATHS: [&str; 2] = [
     "/dev/input/by-path/platform-pcspkr-event-spkr",
     "/dev/console",
 ];
+#[cfg(target_os = "linux")]
 const EV_SND: u16 = 0x12;
+#[cfg(target_os = "linux")]
 const SND_TONE: u16 = 0x02;
 const KIOCSOUND: u64 = 0x4B2F;
 const TIMER_FREQUENCY: u32 = 1193182;
